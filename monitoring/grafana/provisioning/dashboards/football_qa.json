@@ -1,0 +1,146 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Response Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT created_at AS time, response_time FROM conversations ORDER BY created_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Relevance Distribution",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT relevance, COUNT(*) AS count FROM conversations WHERE relevance IS NOT NULL GROUP BY relevance",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Token Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT created_at AS time, prompt_tokens, completion_tokens, total_tokens FROM conversations ORDER BY created_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cumulative Cost ($)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT created_at AS time, SUM(cost) OVER (ORDER BY created_at) AS cumulative_cost FROM conversations ORDER BY created_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": { "lineWidth": 2, "fillOpacity": 20 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "User Feedback",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 16 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(CASE WHEN score > 0 THEN 1 ELSE 0 END) AS thumbs_up, SUM(CASE WHEN score < 0 THEN 1 ELSE 0 END) AS thumbs_down, COUNT(*) AS total FROM feedback",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Model Usage",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT model, COUNT(*) AS queries FROM conversations GROUP BY model ORDER BY queries DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Source Distribution",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "targets": [
+        {
+          "rawSql": "SELECT retrieval_method, COUNT(*) AS count FROM conversations GROUP BY retrieval_method",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["football-qa"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "PostgreSQL", "value": "PostgreSQL" },
+        "hide": 2,
+        "includeAll": false,
+        "name": "DS_POSTGRESQL",
+        "options": [],
+        "query": "postgres",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "title": "Football Tactics Q&A",
+  "uid": "football-qa-dashboard"
+}
