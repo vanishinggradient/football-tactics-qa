@@ -1,0 +1,27 @@
+[project]
+name = "football-tactics-qa"
+version = "0.1.0"
+description = "Football Tactics Q&A - RAG application for football tactical analysis"
+requires-python = ">=3.11"
+dependencies = [
+    "elasticsearch==8.17.2",
+    "sentence-transformers==3.4.1",
+    "streamlit==1.42.2",
+    "psycopg[binary]==3.2.6",
+    "openai==1.68.2",
+    "prefect==3.2.14",
+    # youtube transcripts: uses system yt-dlp (more reliable than youtube-transcript-api)
+    "wikipedia==1.4.0",
+    "statsbombpy==1.14.0",
+    "pandas==2.2.3",
+    "pydantic==2.11.1",
+    "python-dotenv==1.1.0",
+    "tqdm==4.67.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app", "ingestion"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
