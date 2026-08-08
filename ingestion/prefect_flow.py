@@ -96,4 +96,31 @@ def ingestion_flow():
 
 
 if __name__ == "__main__":
-    ingestion_flow()
+    import sys
+
+    if "--no-prefect" in sys.argv:
+        # Run without Prefect server (useful when there are version conflicts)
+        print("Running without Prefect orchestration...")
+        sb_docs = collect_statsbomb_data()
+        yt_docs = collect_transcripts()
+        wiki_docs = collect_wiki()
+
+        all_docs = sb_docs + yt_docs + wiki_docs
+        print(f"Total documents collected: {len(all_docs)}")
+
+        os.makedirs(os.path.dirname(PROCESSED_PATH), exist_ok=True)
+        with open(PROCESSED_PATH, "w") as f:
+            json.dump(all_docs, f, indent=2)
+        print(f"Saved to {PROCESSED_PATH}")
+
+        chunks = chunk_documents(all_docs, chunk_size=500, overlap=50)
+        print(f"Total chunks: {len(chunks)}")
+
+        embedded = embed_documents(chunks)
+
+        es = get_es_client()
+        create_index(es)
+        bulk_index(es, embedded)
+        print("Ingestion complete.")
+    else:
+        ingestion_flow()
