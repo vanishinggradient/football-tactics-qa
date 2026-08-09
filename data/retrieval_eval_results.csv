@@ -1,0 +1,6 @@
+approach,hit_rate,mrr
+text_only,0.5792,0.4471
+vector_only,0.7333,0.5562
+hybrid_linear,0.6167,0.4656
+hybrid_rrf,0.7792,0.5921
+hybrid_rrf_reranked,0.8083,0.6679
