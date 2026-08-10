@@ -126,9 +126,19 @@ The hybrid RRF approach with cross-encoder re-ranking performed best, improving 
 
 ### RAG Evaluation
 
-Compared 3 prompt templates across 2 models using LLM-as-judge (% answers rated RELEVANT).
+Compared 3 prompt templates using LLM-as-judge on 30 questions (% answers rated RELEVANT).
 
-Results are in `data/rag_eval_results.csv`.
+| Model | Prompt | % Relevant |
+|---|---|---|
+| llama-3.1-8b-instant | basic | 80.0% |
+| llama-3.1-8b-instant | **expert** | **86.7%** |
+| llama-3.1-8b-instant | structured | 86.7% |
+
+The **expert** prompt template with `llama-3.1-8b-instant` was selected for the production pipeline. It scored 86.7% relevance with the best balance of accuracy and conciseness.
+
+The 70b model hit Groq's free-tier daily token limit during evaluation. Its partial results (basic: 56.7% on 18/30 questions) suggest it performs well when not rate-limited, but the 8b model is the better fit for a free-tier deployment.
+
+Full results in `data/rag_eval_results.csv`.
 
 
 ## Monitoring
