@@ -101,17 +101,25 @@ if __name__ == "__main__":
     if "--no-prefect" in sys.argv:
         # Run without Prefect server (useful when there are version conflicts)
         print("Running without Prefect orchestration...")
-        sb_docs = collect_statsbomb_data()
-        yt_docs = collect_transcripts()
-        wiki_docs = collect_wiki()
 
-        all_docs = sb_docs + yt_docs + wiki_docs
-        print(f"Total documents collected: {len(all_docs)}")
+        # If documents.json already exists, skip collection (faster Docker start)
+        if os.path.exists(PROCESSED_PATH):
+            print(f"Loading existing documents from {PROCESSED_PATH}")
+            with open(PROCESSED_PATH) as f:
+                all_docs = json.load(f)
+            print(f"Loaded {len(all_docs)} documents")
+        else:
+            sb_docs = collect_statsbomb_data()
+            yt_docs = collect_transcripts()
+            wiki_docs = collect_wiki()
 
-        os.makedirs(os.path.dirname(PROCESSED_PATH), exist_ok=True)
-        with open(PROCESSED_PATH, "w") as f:
-            json.dump(all_docs, f, indent=2)
-        print(f"Saved to {PROCESSED_PATH}")
+            all_docs = sb_docs + yt_docs + wiki_docs
+            print(f"Total documents collected: {len(all_docs)}")
+
+            os.makedirs(os.path.dirname(PROCESSED_PATH), exist_ok=True)
+            with open(PROCESSED_PATH, "w") as f:
+                json.dump(all_docs, f, indent=2)
+            print(f"Saved to {PROCESSED_PATH}")
 
         chunks = chunk_documents(all_docs, chunk_size=500, overlap=50)
         print(f"Total chunks: {len(chunks)}")
