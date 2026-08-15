@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.rag import FootballTacticsRAG, PROMPT_TEMPLATES
-from app.db import save_feedback, get_recent_conversations, get_dashboard_stats
+from app.db import save_feedback, get_recent_conversations, get_dashboard_stats, get_chart_data
 
 
 st.set_page_config(page_title="Football Tactics Q&A", layout="wide")
@@ -100,7 +100,9 @@ if page == "Ask":
 # --- Dashboard page ---
 elif page == "Dashboard":
     st.title("Monitoring Dashboard")
-    st.caption("Live stats from PostgreSQL. Full dashboard at Grafana :3000")
+    from app.db import _get_backend
+    db_label = "PostgreSQL" if _get_backend() == "postgres" else "SQLite"
+    st.caption(f"Live stats from {db_label}.")
 
     try:
         stats = get_dashboard_stats()
@@ -110,6 +112,66 @@ elif page == "Dashboard":
         col2.metric("Avg Response Time", f"{stats['avg_response_time']:.2f}s")
         col3.metric("Relevance %", f"{stats['relevance_pct']}%")
         col4.metric("Total Cost", f"${stats['total_cost']:.4f}")
+
+        # Charts
+        st.divider()
+        try:
+            import pandas as pd
+            charts = get_chart_data()
+
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                st.subheader("Response Time")
+                if charts["response_times"]:
+                    df_rt = pd.DataFrame(charts["response_times"])
+                    df_rt["created_at"] = pd.to_datetime(df_rt["created_at"])
+                    st.line_chart(df_rt, x="created_at", y="response_time")
+                else:
+                    st.info("No data yet.")
+
+            with col_right:
+                st.subheader("Relevance Distribution")
+                if charts["relevance_dist"]:
+                    df_rel = pd.DataFrame(
+                        list(charts["relevance_dist"].items()),
+                        columns=["Relevance", "Count"],
+                    )
+                    st.bar_chart(df_rel, x="Relevance", y="Count")
+                else:
+                    st.info("No data yet.")
+
+            col_left2, col_right2 = st.columns(2)
+
+            with col_left2:
+                st.subheader("User Feedback")
+                if sum(charts["feedback_dist"].values()) > 0:
+                    df_fb = pd.DataFrame(
+                        list(charts["feedback_dist"].items()),
+                        columns=["Type", "Count"],
+                    )
+                    st.bar_chart(df_fb, x="Type", y="Count")
+                else:
+                    st.info("No feedback yet.")
+
+            with col_right2:
+                st.subheader("Token Usage")
+                if charts["token_usage"]:
+                    df_tok = pd.DataFrame(charts["token_usage"])
+                    df_tok["created_at"] = pd.to_datetime(df_tok["created_at"])
+                    st.line_chart(df_tok, x="created_at", y=["prompt_tokens", "completion_tokens"])
+                else:
+                    st.info("No data yet.")
+
+            if charts["model_usage"]:
+                st.subheader("Model Usage")
+                df_model = pd.DataFrame(
+                    list(charts["model_usage"].items()),
+                    columns=["Model", "Queries"],
+                )
+                st.bar_chart(df_model, x="Model", y="Queries")
+        except Exception:
+            pass
 
         st.divider()
         st.subheader("Recent Conversations")
@@ -130,4 +192,4 @@ elif page == "Dashboard":
             st.info("No conversations yet. Ask some questions first!")
     except Exception as e:
         st.error(f"Could not connect to database: {e}")
-        st.info("Make sure PostgreSQL is running (docker-compose up)")
+        st.info("Make sure the database is available.")

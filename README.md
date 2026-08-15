@@ -143,9 +143,19 @@ Full results in `data/rag_eval_results.csv`.
 
 ## Monitoring
 
-User feedback (thumbs up/down) is collected in the Streamlit UI and stored in PostgreSQL.
+User feedback (thumbs up/down) is collected in the Streamlit UI and stored in the database (PostgreSQL or SQLite).
 
-Grafana dashboard at `localhost:3000` with 7 panels:
+**In-app dashboard** (Streamlit "Dashboard" page) with 5 charts:
+
+1. Response time over time (line chart)
+2. Relevance distribution (bar chart)
+3. User feedback summary (bar chart)
+4. Token usage over time (line chart)
+5. Model usage breakdown (bar chart)
+
+Plus: 4 KPI metrics (total queries, avg response time, relevance %, total cost) and a recent conversations table.
+
+**Grafana dashboard** (docker mode only) at `localhost:3000` with 7 panels:
 
 1. Response time over time
 2. Relevance distribution (pie chart)
@@ -179,10 +189,40 @@ football-tactics-qa/
 │   └── index_elasticsearch.py
 ├── monitoring/             # Grafana provisioning + DB schema
 ├── scripts/                # Evaluation and ground truth generation
+├── tests/                  # Unit tests (58 tests)
+│   ├── test_chunk.py       # Chunking logic (12 tests)
+│   ├── test_db.py          # Database layer via SQLite (8 tests)
+│   ├── test_judge.py       # LLM-as-judge evaluation (6 tests)
+│   ├── test_llm_client.py  # Cost estimation and model config (12 tests)
+│   ├── test_query_rewriter.py  # Query rewriting (4 tests)
+│   ├── test_reranker.py    # Cross-encoder re-ranking (6 tests)
+│   └── test_search.py      # RRF scoring and backend detection (10 tests)
 ├── data/                   # Processed documents and eval results
 ├── docker-compose.yml
 ├── Dockerfile
 └── Makefile
+```
+
+Run tests with:
+
+```bash
+uv run python -m pytest tests/ -v
+```
+
+
+## Cloud Deployment
+
+The app supports two deployment modes:
+
+| Mode | Search | Database | Use case |
+|---|---|---|---|
+| **Docker** (full) | Elasticsearch | PostgreSQL | Local dev, full Grafana monitoring |
+| **Cloud** (lightweight) | minsearch (in-memory) | SQLite | Streamlit Cloud, zero external services |
+
+The backend is auto-detected: if Elasticsearch is reachable, it uses ES. Otherwise it falls back to minsearch + SQLite. You can also force a backend via environment variables:
+
+```bash
+SEARCH_BACKEND=minsearch DB_BACKEND=sqlite streamlit run app/streamlit_app.py
 ```
 
 
@@ -196,12 +236,19 @@ football-tactics-qa/
 | LLM evaluation (multiple prompts/models) | 2 | `scripts/eval_rag.py`, `data/rag_eval_results.csv` |
 | Interface | 2 | `app/streamlit_app.py` (Streamlit UI) |
 | Ingestion pipeline (automated) | 2 | `ingestion/prefect_flow.py` (Prefect) |
-| Monitoring (feedback + dashboard) | 2 | `app/db.py`, `monitoring/grafana/` (7 panels) |
+| Monitoring (feedback + 5 charts) | 2 | `app/db.py`, Streamlit dashboard (5 charts), `monitoring/grafana/` (7 panels) |
 | Containerization | 2 | `docker-compose.yml`, `Dockerfile` |
 | Reproducibility | 2 | This README, `data/processed/documents.json` committed |
 | Hybrid search | 1 | `app/search.py` (BM25 + vector + RRF) |
 | Re-ranking | 1 | `app/reranker.py` (cross-encoder) |
 | Query rewriting | 1 | `app/query_rewriter.py` (LLM expansion) |
+| Cloud deployment | 2 | Streamlit Cloud (minsearch + SQLite mode) |
+| Unit tests | +bonus | `tests/` (58 tests covering all pipeline components) |
+
+
+## AI Transparency
+
+Core architecture, search algorithms, and evaluation logic were written by hand. Claude Code assisted with boilerplate, documentation, and the cloud deployment adapter (minsearch/SQLite fallback layer).
 
 
 ## Acknowledgments

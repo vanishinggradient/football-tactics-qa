@@ -1,14 +1,37 @@
-"""Elasticsearch search functions: text, vector, hybrid, and RRF."""
+"""Search functions: Elasticsearch (local/docker) or minsearch (cloud/lightweight)."""
 
+import json
 import os
-from elasticsearch import Elasticsearch
+from pathlib import Path
+
 from sentence_transformers import SentenceTransformer
 
 INDEX_NAME = "football-tactics"
 EMBEDDING_MODEL = "multi-qa-MiniLM-L6-cos-v1"
+DOCUMENTS_PATH = Path(__file__).parent.parent / "data" / "processed" / "documents.json"
+
+
+def is_elasticsearch_available():
+    """Check if Elasticsearch is reachable."""
+    url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
+    try:
+        from elasticsearch import Elasticsearch
+        es = Elasticsearch(url)
+        es.info()
+        return True
+    except Exception:
+        return False
+
+
+def get_search_backend():
+    """Return 'elasticsearch' or 'minsearch' based on availability."""
+    if os.getenv("SEARCH_BACKEND"):
+        return os.getenv("SEARCH_BACKEND")
+    return "elasticsearch" if is_elasticsearch_available() else "minsearch"
 
 
 def get_es_client(url=None):
+    from elasticsearch import Elasticsearch
     url = url or os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     return Elasticsearch(url)
 
@@ -16,6 +39,93 @@ def get_es_client(url=None):
 def get_embedding_model(model_name=EMBEDDING_MODEL):
     return SentenceTransformer(model_name)
 
+
+# ---------------------------------------------------------------------------
+# Minsearch backend (lightweight, no external services needed)
+# ---------------------------------------------------------------------------
+
+class MinsearchBackend:
+    """In-memory text search using minsearch + sentence-transformers for vector."""
+
+    def __init__(self, embedding_model):
+        import minsearch
+        self.index = minsearch.Index(
+            text_fields=["title", "content"],
+            keyword_fields=["chunk_id", "doc_id", "source"],
+        )
+        self.embedding_model = embedding_model
+        self.docs = []
+        self.vectors = []
+        self._load_documents()
+
+    def _load_documents(self):
+        """Load pre-built documents.json, chunk, embed, and index."""
+        from ingestion.chunk import chunk_documents
+
+        with open(DOCUMENTS_PATH) as f:
+            documents = json.load(f)
+
+        chunks = chunk_documents(documents)
+        self.docs = chunks
+        self.index.fit(chunks)
+
+        # Pre-compute vectors for cosine similarity search
+        texts = [c["content"] for c in chunks]
+        self.vectors = self.embedding_model.encode(texts)
+
+    def text_search(self, query, k=10):
+        results = self.index.search(
+            query,
+            boost_dict={"title": 2.0, "content": 1.0},
+            num_results=k,
+        )
+        return self._format(results)
+
+    def vector_search(self, query, k=10):
+        import numpy as np
+        query_vec = self.embedding_model.encode(query)
+        scores = np.dot(self.vectors, query_vec) / (
+            np.linalg.norm(self.vectors, axis=1) * np.linalg.norm(query_vec)
+        )
+        top_indices = np.argsort(scores)[::-1][:k]
+        return self._format([self.docs[i] for i in top_indices])
+
+    def hybrid_search_rrf(self, query, k=10, rrf_k=60):
+        text_results = self.text_search(query, k=k)
+        vector_results = self.vector_search(query, k=k)
+
+        rrf_scores = {}
+        doc_data = {}
+
+        for rank, doc in enumerate(vector_results):
+            cid = doc["chunk_id"]
+            rrf_scores[cid] = 1 / (rrf_k + rank + 1)
+            doc_data[cid] = doc
+
+        for rank, doc in enumerate(text_results):
+            cid = doc["chunk_id"]
+            rrf_scores[cid] = rrf_scores.get(cid, 0) + 1 / (rrf_k + rank + 1)
+            doc_data[cid] = doc
+
+        sorted_ids = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
+        return [doc_data[cid] for cid in sorted_ids[:k]]
+
+    def _format(self, docs):
+        return [
+            {
+                "chunk_id": d.get("chunk_id", ""),
+                "doc_id": d.get("doc_id", ""),
+                "source": d.get("source", ""),
+                "title": d.get("title", ""),
+                "content": d.get("content", ""),
+            }
+            for d in docs
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Elasticsearch backend functions (unchanged from original)
+# ---------------------------------------------------------------------------
 
 def text_only_search(es_client, query, k=10, index_name=INDEX_NAME):
     """BM25 keyword search only."""

@@ -1,0 +1,12 @@
+# Requirements for Streamlit Cloud deployment (lightweight mode)
+# Uses minsearch + SQLite instead of Elasticsearch + PostgreSQL
+streamlit==1.42.2
+sentence-transformers==3.4.1
+openai==1.68.2
+minsearch==0.0.8
+pydantic==2.11.1
+python-dotenv==1.1.0
+pandas==2.2.3
+tqdm==4.67.1
+numpy
+scikit-learn

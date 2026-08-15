@@ -3,7 +3,10 @@
 import time
 
 from app.llm_client import get_llm_client, get_model_name, estimate_cost
-from app.search import get_es_client, get_embedding_model, hybrid_search_rrf
+from app.search import (
+    get_search_backend, get_es_client, get_embedding_model,
+    hybrid_search_rrf, MinsearchBackend,
+)
 from app.reranker import Reranker
 from app.query_rewriter import rewrite_query
 from app.judge import evaluate_relevance
@@ -56,9 +59,15 @@ class FootballTacticsRAG:
     def __init__(self):
         self.llm_client = get_llm_client()
         self.model_name = get_model_name()
-        self.es_client = get_es_client()
         self.embedding_model = get_embedding_model()
         self.reranker = Reranker()
+        self.backend = get_search_backend()
+        if self.backend == "elasticsearch":
+            self.es_client = get_es_client()
+            self.minsearch = None
+        else:
+            self.es_client = None
+            self.minsearch = MinsearchBackend(self.embedding_model)
 
     def answer(self, question, prompt_template=DEFAULT_TEMPLATE, top_k=5):
         """Full RAG pipeline. Returns a result dict with all metadata."""
@@ -75,9 +84,12 @@ class FootballTacticsRAG:
         total_completion_tokens += rewrite_usage["completion_tokens"]
 
         # 2. Hybrid search with RRF
-        retrieved = hybrid_search_rrf(
-            self.es_client, self.embedding_model, rewritten_query, k=20
-        )
+        if self.backend == "elasticsearch":
+            retrieved = hybrid_search_rrf(
+                self.es_client, self.embedding_model, rewritten_query, k=20
+            )
+        else:
+            retrieved = self.minsearch.hybrid_search_rrf(rewritten_query, k=20)
 
         # 3. Re-rank with cross-encoder
         reranked = self.reranker.rerank(rewritten_query, retrieved, top_k=top_k)
